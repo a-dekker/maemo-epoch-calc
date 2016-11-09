@@ -1,0 +1,328 @@
+#!/usr/bin/python
+#
+import sys, os, time, datetime
+from PySide.QtCore import *
+from PySide.QtGui import *
+from PySide.QtMaemo5 import QMaemo5DatePickSelector, QMaemo5TimePickSelector, QMaemo5ValueButton
+
+
+####################
+# Global variables #
+####################
+Epoch_CalcVersion = "0.0.1-4"
+
+class MyMainWindow(QMainWindow):
+    def __init__(self, parent=None):
+        #
+        super(MyMainWindow, self).__init__(parent)
+        self.setAttribute(Qt.WA_Maemo5StackedWindow)
+
+        self.setWindowTitle(self.tr("epoch-calc"))
+
+        self.form_widget = FormWidget(self)
+        self.setCentralWidget(self.form_widget)
+
+        self.setAttribute(Qt.WA_Maemo5AutoOrientation, True)
+        ###############
+        # Create menu #
+        ###############
+        aboutAction = QAction( '&About', self)
+        helpAction = QAction( '&Help', self)
+
+        ########################
+        # create menu from bar #
+        ########################
+        menubar = self.menuBar()
+        mainMenu = menubar.addMenu('&MainMenu')
+        mainMenu.addAction(helpAction)
+        mainMenu.addAction(aboutAction)
+
+        ##################
+        # Define actions #
+        ##################
+        aboutAction.triggered.connect(self.aboutPushed)
+        helpAction.triggered.connect(self.helpPushed)
+
+    def aboutPushed(self):
+        d = QDialog(self)
+        vbox = QVBoxLayout()
+        verticalLayout = QVBoxLayout()
+        d.setWindowTitle(self.tr("About epoch-calc"))
+        verticalLayout.addWidget(QLabel("<center><img src=/opt/usr/share/icons/hicolor/64x64/apps/epoch-calc.png /></center>"),0)
+        verticalLayout.addWidget(QLabel("<center><b><big>epoch-calc "+Epoch_CalcVersion+"</big></b></center>"),1)
+        verticalLayout.addWidget(QLabel("<center>Created by Arno Dekker (ade)</center>"),2)
+        vbox.addLayout (verticalLayout)
+        d.setLayout(vbox)
+        d.show()
+
+    def helpPushed(self):
+        a = AboutWindow(self)
+        a.show()
+
+class AboutWindow(QMainWindow):
+    def __init__(self, parent):
+        QMainWindow.__init__(self, parent)
+        self.setWindowTitle("More info")
+        self.setAttribute(Qt.WA_Maemo5StackedWindow)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+        area = QScrollArea()
+        lay = QHBoxLayout()
+        lay.addWidget(area)
+        self.wg = QWidget()
+        area.setWidget(self.wg)
+        self.setCentralWidget(area)
+        self.wg.resize(478, 740)
+        sizePolicy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.wg.sizePolicy().hasHeightForWidth())
+        self.wg.setSizePolicy(sizePolicy)
+        grid = QGridLayout(self.wg)
+        infoTXT = "<font style='color: black'>" \
+                "<b>epoch-calc</b> helps you to convert the Unix time to human readable format and vice versa.<p>" \
+                "<b><u>Unix time:</u></b><br>" \
+                "Unix time, or POSIX time, is a system for describing instants in time, defined as the number " \
+                "of seconds that have elapsed since 00:00:00 Coordinated Universal Time (UTC), Thursday, 1 January 1970, " \
+                "not counting leap seconds.<br>" \
+                "It is used widely in Unix-like and many other operating systems and file formats. " \
+                "Due to its handling of leap seconds, it is neither a linear representation of time nor a true " \
+                "representation of UTC. Unix time may be checked on most Unix systems by typing " \
+                "date +%s on the command line.<p>"  \
+                "The standard Unix time_t (data type representing a point in time) is a signed integer data type, " \
+                "traditionally of 32 bits, directly encoding the Unix time number as described in the preceding " \
+                "section. Being 32 bits means that it covers a range of about 136 years in total. The minimum " \
+                "representable time is 1901-12-13, and the maximum representable time is 2038-01-19. At 03:14:07 UTC " \
+                "2038-01-19 this representation overflows.<br>" \
+                "In some newer operating systems, time_t has been widened to 64 bits. In the negative direction, " \
+                "this goes back more than twenty times the age of the universe and in the positive direction for " \
+                "approximately 293 billion years."
+
+        termsInfo = QTextBrowser()
+        termsInfo.setMinimumSize(QSize(330, 340))
+        termsInfo.setHtml( infoTXT )
+        font = QFont()
+        font.setPointSize(16)
+        termsInfo.setFont(font)
+        grid.addWidget(termsInfo, 0, 0)
+        self.wg.show()
+        self.connect(QApplication.desktop(), SIGNAL("resized(int)"), self.orientationChanged)
+        # set correct orientation at start
+        self.orientationChanged()
+
+    def orientationChanged(self):
+        screenGeometry = QApplication.desktop().screenGeometry()
+        if screenGeometry.width() < screenGeometry.height():
+            # portrait
+            self.wg.resize(478, 740)
+        else:
+            self.wg.resize(792, 420)
+
+
+class FormWidget(QWidget):
+    def __init__(self, parent):
+        super(FormWidget, self).__init__(parent)
+        # Layout
+        self.grid = QGridLayout()
+        self.setLayout(self.grid)
+        AMPMDisabled = os.popen('gconftool-2 -g /apps/clock/time-format').read().strip()
+        if AMPMDisabled == "false":
+            self.isAMPM = True
+        else:
+            self.isAMPM = False
+        # Button declarations
+        Iconlabel = QLabel("<center><b>Unix time calculator</b></center>")
+        Uxtimelabel = QLabel("Unix time:")
+        self.UxtimeEdit = QLineEdit(self)
+        validator = QIntValidator(0,2146483547, self)
+        # for some unknown reason, %p works on the prompt, but on if called in a python script
+        # so a workaround:
+        self.PMtxt = QLocale.system().pmText()
+        self.AMtxt = QLocale.system().amText()
+        self.GMTtime = QLabel()
+        if self.isAMPM:
+            if int(time.strftime("%H", time.gmtime())) < 12:
+                self.GMTtime.setText(time.strftime("%A %Y-%m-%d %I:%M:%S ", time.gmtime()) + self.AMtxt + " GMT")
+            else:
+                self.GMTtime.setText(time.strftime("%A %Y-%m-%d %I:%M:%S ", time.gmtime()) + self.PMtxt + " GMT")
+        else:
+            self.GMTtime.setText(time.strftime("%A %Y-%m-%d %H:%M:%S GMT", time.gmtime()))
+        font = QFont()
+        font.setPointSize(15)
+        self.GMTtime.setFont(font)
+        self.GMTtime.setStyleSheet("qproperty-alignment: 'AlignCenter|AlignCenter';")
+        self.UxtimeEdit.setValidator(validator)
+        self.UxtimeEdit.setText(str(int(time.time())))
+        clipboardButton = QPushButton()
+        clipboardButton.setIcon(QIcon.fromTheme("email_attachment"))
+        Currheader = QLabel("<center><b>Current time info:</b><center>")
+        font.setPointSize(16)
+        Currheader.setFont(font)
+        CurrUxtimelabel = QLabel("Unix:")
+        self.CurrUxtime = QLabel(str(int(time.time())))
+        self.CurrUxtime.setStyleSheet("qproperty-alignment: 'AlignCenter|AlignRight';")
+        CurrGMTtimelabel = QLabel("GMT(UTC):")
+        self.CurrGMTtime = QLabel(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
+        self.CurrGMTtime.setStyleSheet("qproperty-alignment: 'AlignCenter|AlignRight';")
+        CurrLoctimelabel = QLabel("Local:")
+        self.CurrLoctime = QLabel()
+        self.CurrLoctime.setStyleSheet("qproperty-alignment: 'AlignCenter|AlignRight';")
+        SecsLabel = QLabel("secs")
+        #picker for date using QtMaemo5
+        self.datePicker = QMaemo5ValueButton("Date")
+        self.datePicker.setValueLayout(QMaemo5ValueButton.ValueUnderText)
+        self.dateWidget = QMaemo5DatePickSelector()
+        self.datePicker.setPickSelector(self.dateWidget)
+        self.datePicker.setValueLayout(QMaemo5ValueButton.ValueUnderTextCentered)
+        #picker for time using QtMaemo5
+        self.timePicker = QMaemo5ValueButton("Time")
+        self.timePicker.setValueLayout(QMaemo5ValueButton.ValueUnderText)
+        self.timeWidget = QMaemo5TimePickSelector()
+        self.timePicker.setPickSelector(self.timeWidget)
+        self.timePicker.setValueLayout(QMaemo5ValueButton.ValueUnderTextCentered)
+        # some line definitions
+        line1 = QFrame()
+        line1.setLineWidth(3)
+        line1.setMidLineWidth(3)
+        line1.setFrameShape(QFrame.HLine)
+        line1.setFrameShadow(QFrame.Sunken)
+        line2 = QFrame()
+        line2.setLineWidth(3)
+        line2.setMidLineWidth(3)
+        line2.setFrameShape(QFrame.HLine)
+        line2.setFrameShadow(QFrame.Sunken)
+        line3 = QFrame()
+        line3.setLineWidth(3)
+        line3.setMidLineWidth(3)
+        line3.setFrameShape(QFrame.HLine)
+        line3.setFrameShadow(QFrame.Sunken)
+        # add widgets
+        self.grid.addWidget(Iconlabel,0,0,1,4)
+        self.grid.addWidget(line1,1,0,1,4)
+        self.grid.addWidget(self.datePicker,2,0,1,2)
+        self.grid.addWidget(self.timePicker,2,2,1,2)
+        self.grid.addWidget(self.GMTtime,3,0,1,4)
+        self.grid.addWidget(Uxtimelabel,4,0)
+        self.grid.addWidget(self.UxtimeEdit,4,1,1,2)
+        self.grid.addWidget(clipboardButton,4,3)
+        self.grid.addWidget(line2,5,0,1,4)
+        self.grid.addWidget(Currheader,6,0,1,4)
+        self.grid.addWidget(CurrUxtimelabel,7,0)
+        self.grid.addWidget(self.CurrUxtime,7,1,1,3)
+        self.grid.addWidget(CurrLoctimelabel,8,0)
+        self.grid.addWidget(self.CurrLoctime,8,1,1,3)
+        self.grid.addWidget(CurrGMTtimelabel,9,0)
+        self.grid.addWidget(self.CurrGMTtime,9,1,1,3)
+        self.grid.addWidget(line3,10,0,1,4)
+        self.dateTxt = self.datePicker.valueText()
+        self.timeTxt = self.timePicker.valueText()
+        # signals/slots
+        self.UxtimeEdit.textEdited[str].connect(self.onChangedUx)
+        self.connect(self.timePicker, SIGNAL("clicked()"), self.setPickedTime)
+        self.connect(self.datePicker, SIGNAL("clicked()"), self.setPickedTime)
+        self.connect(clipboardButton, SIGNAL("clicked()"), self.clipboardPushed)
+        # start timers
+        self.Timers = QTimer()
+        self.Timers.timeout.connect(self.updateTimers)
+        self.Timers.start(1000)
+
+    def updateTimers(self):
+        self.CurrUxtime.setText(str(int(time.time())) + " secs")
+        if self.isAMPM:
+            if int(time.strftime("%H", time.localtime())) < 12:
+                self.CurrLoctime.setText(time.strftime("%Y-%m-%d %I:%M:%S ", time.localtime()) + self.AMtxt + time.strftime(" %Z", time.localtime()))
+            else:
+                self.CurrLoctime.setText(time.strftime("%Y-%m-%d %I:%M:%S ", time.localtime()) + self.PMtxt + time.strftime(" %Z", time.localtime()))
+            if int(time.strftime("%H", time.gmtime())) < 12:
+                self.CurrGMTtime.setText(time.strftime("%Y-%m-%d %I:%M:%S ", time.gmtime()) + self.AMtxt + " GMT")
+            else:
+                self.CurrGMTtime.setText(time.strftime("%Y-%m-%d %I:%M:%S ", time.gmtime()) + self.PMtxt + " GMT")
+        else:
+            self.CurrLoctime.setText(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + time.strftime(" %Z", time.localtime()))
+            self.CurrGMTtime.setText(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()) + " GMT")
+
+    def onChangedUx(self):
+        # update timebutton
+        hours = time.strftime("%H", time.localtime(int(self.UxtimeEdit.text())))
+        minutes = time.strftime("%M", time.localtime(int(self.UxtimeEdit.text())))
+        seconds = time.strftime("%S", time.localtime(int(self.UxtimeEdit.text())))
+        self.timeWidget.setCurrentTime(QTime(int(hours),int(minutes),int(seconds)))
+        # update datebutton
+        year = time.strftime("%Y", time.localtime(int(self.UxtimeEdit.text())))
+        month = time.strftime("%m", time.localtime(int(self.UxtimeEdit.text())))
+        day = time.strftime("%d", time.localtime(int(self.UxtimeEdit.text())))
+        self.dateWidget.setCurrentDate(QDate(int(year),int(month),int(day)))
+        # update GMT date/time
+        if self.isAMPM:
+            if int(time.strftime("%H", time.gmtime(int(self.UxtimeEdit.text())))) < 12:
+                self.GMTtime.setText(time.strftime("%A %Y-%m-%d %I:%M:%S ", time.gmtime(int(self.UxtimeEdit.text()))) + self.AMtxt + " GMT")
+            else:
+                self.GMTtime.setText(time.strftime("%A %Y-%m-%d %I:%M:%S ", time.gmtime(int(self.UxtimeEdit.text()))) + self.PMtxt + " GMT")
+        else:
+            self.GMTtime.setText(time.strftime("%A %Y-%m-%d %H:%M:%S GMT", time.gmtime(int(self.UxtimeEdit.text()))))
+
+    def setPickedTime(self):
+        if self.dateTxt != self.datePicker.valueText() or self.timeTxt != self.timePicker.valueText():
+            # as we cannot see if it is accepted or rejected, check the texts for changes
+            timeset = self.timeWidget.currentTime()
+            hour = timeset.hour()
+            minute = timeset.minute()
+            second = timeset.second()
+            dateset = self.dateWidget.currentDate()
+            year = dateset.year()
+            month = dateset.month()
+            day = dateset.day()
+            tt = datetime.datetime( year, month, day, hour, minute, second )
+            self.UxtimeEdit.setText(str(int( tt.strftime('%s') )))
+            # update GMT date/time
+            mytime = time.mktime(tt.timetuple())
+            self.GMTtime.setText(time.strftime("%A %Y-%m-%d %H:%M:%S GMT", time.gmtime(int(mytime))))
+        # update valuetext info
+        self.dateTxt = self.datePicker.valueText()
+        self.timeTxt = self.timePicker.valueText()
+
+    def clipboardPushed(self):
+        QApplication.clipboard().setText(self.UxtimeEdit.text())
+        os.system('run-standalone.sh dbus-send --type=method_call --dest=org.freedesktop.Notifications  \
+        /org/freedesktop/Notifications org.freedesktop.Notifications.SystemNoteInfoprint \
+        string:"Unix time copied to clipboard"')
+
+class helpWindow(QWidget):
+    def __init__(self,parent):
+        super(helpWindow, self).__init__(parent)
+        self.wg = QDialog(self)
+        self.wg.resize(398, 692)
+        sizePolicy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.wg.sizePolicy().hasHeightForWidth())
+        self.wg.setSizePolicy(sizePolicy)
+        self.wg.setWindowTitle("Time explained")
+        self.grid = QGridLayout(self.wg)
+
+        termsInfo = QTextBrowser()
+        termsInfo.setMinimumSize(QSize(330, 340))
+        termsInfo.setHtml( infoTXT )
+        font = QFont()
+        font.setPointSize(16)
+        termsInfo.setFont(font)
+        self.grid.addWidget(termsInfo, 0, 0)
+        self.connect(QApplication.desktop(), SIGNAL("resized(int)"), self.orientationChanged)
+        self.wg.show()
+
+    def orientationChanged(self):
+        screenGeometry = QApplication.desktop().screenGeometry()
+        if screenGeometry.width() < screenGeometry.height():
+            # portrait
+            self.wg.resize(398, 692)
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+
+    # Create an instance (calling __init__, too, of course) of our window subclassing QWidget
+    w = MyMainWindow()
+
+    # Show our window
+    w.show()
+
+    app.exec_()
+    sys.exit()

@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.maemo.epoch-calc
+Exec=/opt/epoch-calc/epoch-calc

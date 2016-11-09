@@ -1,0 +1,13 @@
+[Desktop Entry]
+Encoding=UTF-8
+Version=1.0
+Type=Application
+Name=epoch-calc
+Comment=unix time calculator
+Category=Network
+Exec=/opt/epoch-calc/epoch-calc
+Icon=epoch-calc
+X-HildonDesk-ShowInToolbar=true
+X-Window-Icon=epoch-calc
+X-Window-Icon-Dimmed=epoch-calc
+X-Osso-Type=application/x-executable
